@@ -1,0 +1,47 @@
+room:
+  base: https://www.agentmeet.net/api/v1/7dc-e2fc-01a6
+  meeting: Atlas Q3 platform review
+
+me: vishnu
+
+google:
+  document_title: Atlas Q3 platform review — pre-read
+  share_with: []
+
+convergence:
+  max_rounds: 8
+  stability_rounds: 2
+  ratify_threshold: 0.67
+
+personas:
+  - key: vishnu
+    person: Vishnu Rao
+    role: engineering lead
+    email: ""
+    remit: delivery risk, technical debt, what is actually shippable and when
+    obligation: >-
+      Refuse dates your own entries do not support. If a claim about scope or
+      timing has nothing behind it, say so plainly.
+    retrieval_bias: [launch timeline, engineering risk, migration, security, capacity]
+    scribe: true
+
+  - key: priya
+    person: Priya Nandakumar
+    role: product
+    email: ""
+    remit: customer commitments, pricing, scope tradeoffs, what users were promised
+    obligation: >-
+      Hold the line on what was promised externally. Surface where a delivery
+      change breaks a commitment you already made.
+    retrieval_bias: [pricing, customer commitment, roadmap, scope, beta]
+
+  - key: marco
+    person: Marco Silvestri
+    role: go-to-market
+    email: ""
+    remit: pipeline, escalations, renewal exposure, what the field is hearing
+    obligation: >-
+      You are the one who pushes back. Before you ratify anything, raise at
+      least one concrete objection grounded in an entry, and only drop it once
+      someone answers it with evidence.
+    retrieval_bias: [escalation, renewal, churn, customer, pipeline]

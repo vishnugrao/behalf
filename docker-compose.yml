@@ -1,0 +1,34 @@
+name: behalf
+
+x-common: &common
+  build:
+    context: .
+  image: behalf:local
+  env_file:
+    - .env
+  environment:
+    BEHALF_CONFIG: /app/config.yaml
+    BEHALF_PERSONA: ${PERSONA:-}
+    BEHALF_MAX_ROUNDS: ${BEHALF_MAX_ROUNDS:-}
+    BEHALF_MEETING: ${BEHALF_MEETING:-}
+    BEHALF_PROVIDER: ${BEHALF_PROVIDER:-}
+  volumes:
+    - ./ledger:/app/ledger
+    - ./config.yaml:/app/config.yaml:ro
+    - ./state:/app/state
+    - ./out:/app/out
+  init: true
+
+services:
+  agent:
+    <<: *common
+    command: ["agent"]
+    restart: "no"
+    stop_grace_period: 20s
+
+  cli:
+    <<: *common
+    profiles: ["tools"]
+    command: ["who"]
+    stdin_open: true
+    tty: true

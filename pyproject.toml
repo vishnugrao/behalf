@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "behalf"
+version = "0.1.0"
+description = "A personal context store and the agent that argues from it"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "PyYAML",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic"]
+openai = ["openai"]
+google = ["google-api-python-client", "google-auth-oauthlib"]
+all = ["anthropic", "openai", "google-api-python-client", "google-auth-oauthlib"]
+dev = ["pytest"]
+
+[project.scripts]
+behalf = "behalf.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
