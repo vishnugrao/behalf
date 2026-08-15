@@ -98,3 +98,42 @@ def test_duplicate_ids_are_rejected(cfg):
     )
     with pytest.raises(ValueError, match="duplicate entry ids"):
         load_entries(cfg.ledger_dir)
+
+
+def test_standing_context_is_stable_across_shifting_conversation(cfg):
+    store = ContextStore(cfg)
+    standing = "launch timeline engineering risk"
+    first = store.context_for(standing, "what about Northwind renewal")
+    second = store.context_for(standing, "tell me about the launch slip")
+    assert "[launch]" in first and "[launch]" in second
+    assert "[renewal]" in first
+    store.close()
+
+
+def test_update_preserves_location_kind_and_tags(cfg):
+    (cfg.ledger_dir / "projects").mkdir()
+    (cfg.ledger_dir / "notes" / "a.md").unlink()
+    (cfg.ledger_dir / "projects" / "a.md").write_text(
+        ENTRY.format(id="launch", title="Launch is 17 March", body="original")
+        .replace("kind: note", "kind: decision")
+        .replace("tags: []", "tags:\n- timeline")
+    )
+    store = ContextStore(cfg)
+    entry = store.write(entry_id="launch", title="Launch is 24 March",
+                        body="slipped", owner="tester", tags=["curated"])
+
+    assert entry.path.parent.name == "projects"
+    assert entry.kind == "decision"
+    assert entry.tags == ["curated", "timeline"]
+    store.close()
+
+
+def test_regenerated_entries_do_not_accumulate_revisions(cfg):
+    store = ContextStore(cfg)
+    for n in range(3):
+        store.write(entry_id="preread-current", title="Pre-read", body=f"version {n}",
+                    owner="tester", archive=False)
+    assert [e.id for e in store.history("preread-current")] == ["preread-current"]
+    assert not [e for e in store._entries if e.startswith("preread-current@")]
+    assert any(e["type"] == "regenerate" for e in store.events())
+    store.close()

@@ -1,41 +1,53 @@
-"""behalf — a personal context store and the agent that argues from it."""
+"""behalf — your context store, and the agent that speaks as you."""
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .agent import AgentRun
 from .brain import build_brain
 from .capture import Capture, CaptureLog, Curator
 from .config import CONFIG
-from .roster import Roster, load_roster
-from .scale import run_scale_test
+from .gdoc import GoogleDocError, GoogleDocPublisher
+from .persona import Room, load_room
 from .store import ContextStore
 
 
-def _roster() -> Roster:
-    return load_roster()
+def _room() -> Room:
+    return load_room()
 
 
 def _author(explicit: str | None = None) -> str:
     if explicit:
         return explicit
-    roster = _roster()
-    return roster.by_key(roster.me).principal.split("(")[0].strip()
+    room = _room()
+    return room.by_key(room.me).person
 
 
-def _apply_convergence(roster: Roster) -> None:
-    """config.yaml sets the defaults; environment variables still win."""
-    import os
-
+def _apply_convergence(room: Room) -> None:
     for key, env in (
         ("max_rounds", "BEHALF_MAX_ROUNDS"),
         ("stability_rounds", "BEHALF_STABILITY_ROUNDS"),
         ("ratify_threshold", "BEHALF_RATIFY_THRESHOLD"),
     ):
-        if key in roster.convergence and env not in os.environ:
-            os.environ[env] = str(roster.convergence[key])
+        if key in room.convergence and env not in os.environ:
+            os.environ[env] = str(room.convergence[key])
+
+
+def _publisher(room: Room, extra_emails: list[str]) -> GoogleDocPublisher:
+    recipients = list(room.google.get("share_with") or [])
+    recipients += [p.email for p in room.personas if p.email]
+    recipients += extra_emails
+    return GoogleDocPublisher(
+        state_dir=CONFIG.state_dir,
+        title=str(room.google.get("document_title") or f"{room.meeting} — pre-read"),
+        client_id=CONFIG.google_client_id,
+        client_secret=CONFIG.google_client_secret,
+        share_with=recipients,
+        document_id=CONFIG.gdoc_id,
+    )
 
 
 def cmd_index(_: argparse.Namespace) -> int:
@@ -88,6 +100,8 @@ def cmd_curate(args: argparse.Namespace) -> int:
     operations = curator.curate()
     if not operations:
         print("nothing pending")
+    if curator.fallback_reason:
+        print(f"verbatim capture only — {curator.fallback_reason}", file=sys.stderr)
     for op in operations:
         print(f"[{op.id}] {op.title}" + (f" — {op.reason}" if op.reason else ""))
     store.close()
@@ -104,7 +118,6 @@ def cmd_captures(args: argparse.Namespace) -> int:
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
-    """Interactive capture. Plain text is a note; slash commands do the rest."""
     store = ContextStore(CONFIG)
     log = CaptureLog(CONFIG.capture_path)
     author = _author(args.author)
@@ -141,7 +154,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
-    """Non-interactive write, for adapters (email, Slack, cron)."""
     body = args.body or sys.stdin.read()
     store = ContextStore(CONFIG)
     entry = store.write(
@@ -156,39 +168,59 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_roster(_: argparse.Namespace) -> int:
-    roster = _roster()
-    print(f"room    {roster.room_base}")
-    print(f"meeting {roster.meeting}")
-    print(f"me      {roster.me}")
-    for i, agent in enumerate(roster.agents):
-        mark = " (scribe)" if agent.scribe else ""
-        print(f"  {i}. {agent.name:<20} {agent.key:<10} {agent.principal}{mark}")
+def cmd_who(_: argparse.Namespace) -> int:
+    room = _room()
+    print(f"room     {room.base}")
+    print(f"meeting  {room.meeting}")
+    print(f"this machine runs  {room.by_key(room.me).person}  (--persona {room.me})")
+    print("\nturn order:")
+    for i, persona in enumerate(room.personas):
+        mark = " · scribe, publishes the doc" if persona.scribe else ""
+        print(f"  {i}. {persona.person:<20} {persona.key:<8} {persona.role}{mark}")
     return 0
 
 
 def cmd_agent(args: argparse.Namespace) -> int:
-    roster = _roster()
-    _apply_convergence(roster)
-    agent = roster.by_key(args.role or roster.me)
-    names = [n.strip() for n in args.roster.split(",") if n.strip()] or roster.names
-    return AgentRun(
+    room = _room()
+    _apply_convergence(room)
+    persona = room.by_key(args.persona or room.me)
+
+    run = AgentRun(
         cfg=CONFIG,
-        role=agent,
-        roster=names,
-        meeting=args.meeting or roster.meeting,
-        scribe=args.scribe or agent.scribe,
-    ).run()
+        persona=persona,
+        roster=room.names,
+        meeting=args.meeting or room.meeting,
+        scribe=args.scribe or persona.scribe,
+        publisher=None if args.no_doc else _publisher(room, args.share),
+    )
+
+    if args.dry_run:
+        print(f"persona   {persona.person} ({persona.key})")
+        print(f"role      {persona.role}")
+        print(f"scribe    {run.scribe}")
+        print(f"roster    {', '.join(room.names)}")
+        print(f"position  {run.position}")
+        print(f"brain     {run.brain.name}")
+        print("---")
+        print(run.system_prompt())
+        run.store.close()
+        return 0
+
+    return run.run()
 
 
-def cmd_scale(args: argparse.Namespace) -> int:
-    roster = _roster()
-    _apply_convergence(roster)
-    report = run_scale_test(CONFIG, roster, size=args.agents, stagger=args.stagger)
-    print(report.table())
-    print(f"\nreport  {CONFIG.out_dir / 'scale-report.json'}")
-    print(f"logs    {CONFIG.out_dir / 'agents'}")
-    return 0 if all(r.exit_code == 0 for r in report.results) else 1
+def cmd_publish(args: argparse.Namespace) -> int:
+    if not CONFIG.preread_path.exists():
+        print("no pre-read to publish yet — run your agent first", file=sys.stderr)
+        return 1
+    room = _room()
+    publisher = _publisher(room, args.share)
+    try:
+        print(publisher.publish(CONFIG.preread_path.read_text(encoding="utf-8")))
+    except GoogleDocError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    return 0
 
 
 def cmd_preread(_: argparse.Namespace) -> int:
@@ -204,10 +236,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("index", help="sync the vector index with the ledger").set_defaults(func=cmd_index)
-    sub.add_parser("roster", help="show the configured room and agents").set_defaults(func=cmd_roster)
+    sub.add_parser("who", help="show the room, the turn order and who you are").set_defaults(func=cmd_who)
     sub.add_parser("preread", help="print the current one-pager").set_defaults(func=cmd_preread)
 
-    search = sub.add_parser("search", help="vector search the context store")
+    search = sub.add_parser("search", help="hybrid search over your store")
     search.add_argument("query", nargs="+")
     search.add_argument("-k", type=int, default=6)
     search.add_argument("--all", action="store_true", help="include superseded entries")
@@ -225,7 +257,7 @@ def build_parser() -> argparse.ArgumentParser:
     note.add_argument("--curate", action="store_true", help="fold it in immediately")
     note.set_defaults(func=cmd_note)
 
-    curate = sub.add_parser("curate", help="fold pending captures into the ledger")
+    curate = sub.add_parser("curate", help="fold pending captures into your ledger")
     curate.add_argument("--author", default="")
     curate.set_defaults(func=cmd_curate)
 
@@ -248,17 +280,19 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--tag", action="append", default=[])
     ingest.set_defaults(func=cmd_ingest)
 
-    agent = sub.add_parser("agent", help="run your agent in the room")
-    agent.add_argument("--role", default="", help="agent key from config.yaml; defaults to `me`")
-    agent.add_argument("--roster", default="")
+    agent = sub.add_parser("agent", help="join the room as one persona (one process, one person)")
+    agent.add_argument("--persona", default="", help="persona key from config.yaml; defaults to `me`")
     agent.add_argument("--meeting", default="")
-    agent.add_argument("--scribe", action="store_true")
+    agent.add_argument("--scribe", action="store_true", help="force this process to publish the doc")
+    agent.add_argument("--share", action="append", default=[], metavar="EMAIL",
+                       help="also share the Google Doc with this address (repeatable)")
+    agent.add_argument("--no-doc", action="store_true", help="skip the Google Doc, write locally only")
+    agent.add_argument("--dry-run", action="store_true", help="print the resolved persona and exit")
     agent.set_defaults(func=cmd_agent)
 
-    scale = sub.add_parser("scale", help="run N process-isolated agents against one room")
-    scale.add_argument("--agents", type=int, default=3)
-    scale.add_argument("--stagger", type=float, default=1.5)
-    scale.set_defaults(func=cmd_scale)
+    publish = sub.add_parser("publish", help="push the current pre-read to the shared Google Doc")
+    publish.add_argument("--share", action="append", default=[], metavar="EMAIL")
+    publish.set_defaults(func=cmd_publish)
 
     return parser
 

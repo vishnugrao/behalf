@@ -1,13 +1,10 @@
-# secrets and machine-local config
 .env
 .env.*
 !.env.example
 
-# generated state — the ledger is the source of truth, these are derived
 state/
 out/
 
-# python
 .venv/
 __pycache__/
 *.py[cod]
@@ -17,7 +14,6 @@ dist/
 .pytest_cache/
 .ruff_cache/
 
-# editors and os
 .DS_Store
 .idea/
 .vscode/

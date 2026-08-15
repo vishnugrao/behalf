@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .brain import Brain, BrainError, Turn, extract_json
+from .brain import Brain, BrainError, ScriptedBrain, Turn, extract_json
 from .store import ContextStore
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -55,13 +55,16 @@ class Capture:
     @classmethod
     def new(cls, author: str, text: str, source: str = "cli") -> "Capture":
         ts = utcnow()
-        return cls(id=f"cap-{ts.replace(':', '').replace('-', '')}-{slug(text, 16)}",
-                   ts=ts, author=author, text=text.strip(), source=source)
+        return cls(
+            id=f"cap-{ts.replace(':', '').replace('-', '')}-{slug(text, 16)}",
+            ts=ts,
+            author=author,
+            text=text.strip(),
+            source=source,
+        )
 
 
 class CaptureLog:
-    """Append-only chat history of everything the user has told their agent."""
-
     def __init__(self, path: Path) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -120,6 +123,7 @@ class Curator:
     brain: Brain
     author: str
     applied: list[Operation] = field(default_factory=list)
+    fallback_reason: str = ""
 
     def curate(self) -> list[Operation]:
         pending = self.log.pending()
@@ -134,14 +138,20 @@ class Curator:
             f"The author is {self.author}. Emit the operations."
         )
 
-        try:
-            raw = self.brain.think(CURATOR_SYSTEM, [Turn("user", prompt)])
-            payload = extract_json(raw)
-            operations = [
-                op for op in (Operation.parse(r) for r in payload.get("operations") or []) if op
-            ]
-        except BrainError:
-            operations = []
+        operations: list[Operation] = []
+        if isinstance(self.brain, ScriptedBrain):
+            self.fallback_reason = "no model provider configured"
+        else:
+            try:
+                raw = self.brain.think(CURATOR_SYSTEM, [Turn("user", prompt)])
+                payload = extract_json(raw)
+                operations = [
+                    op for op in (Operation.parse(r) for r in payload.get("operations") or []) if op
+                ]
+                if not operations:
+                    self.fallback_reason = f"model returned no usable operations: {raw[:160]}"
+            except BrainError as exc:
+                self.fallback_reason = f"model call failed: {exc}"
 
         if not operations:
             operations = [self._fallback(c) for c in pending]

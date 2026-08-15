@@ -67,7 +67,22 @@ class ContextStore:
         return list(best.values())
 
     def context_block(self, query: str, k: int | None = None) -> str:
-        results = self.search(query, k)
+        return self.render(self.search(query, k))
+
+    def context_for(self, standing: str, current: str, k: int | None = None) -> str:
+        """Union a stable retrieval with a conversation-driven one."""
+        k = k or self.cfg.retrieve_k
+        merged: dict[str, Retrieved] = {}
+        for query, budget in ((standing, k), (current, k)):
+            for hit in self.search(query, budget):
+                keep = merged.get(hit.entry.id)
+                if keep is None or hit.score > keep.score:
+                    merged[hit.entry.id] = hit
+        ranked = sorted(merged.values(), key=lambda r: -r.score)
+        return self.render(ranked)
+
+    @staticmethod
+    def render(results: list[Retrieved]) -> str:
         if not results:
             return "(no matching entries in the context store)"
         return "\n\n---\n\n".join(
@@ -86,6 +101,7 @@ class ContextStore:
         source: str = "agent",
         subdir: str = "notes",
         actor: str = "agent",
+        archive: bool = True,
     ) -> Entry:
         entry = upsert(
             self.cfg.ledger_dir,
@@ -99,6 +115,7 @@ class ContextStore:
             source=source,
             subdir=subdir,
             actor=actor,
+            archive=archive,
         )
         self.reload()
         return entry

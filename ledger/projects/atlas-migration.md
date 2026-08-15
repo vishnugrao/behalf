@@ -1,26 +1,30 @@
 ---
 id: atlas-migration
-title: Tenant isolation rework is the critical path
+title: Tenant isolation rework is the critical path — batch three has slipped a week
 kind: risk
-owner: vishnu
+owner: Vishnu Rao
 status: active
 tags:
-- atlas
-- engineering
-- risk
+- curated
 confidence: 0.8
-valid_from: '2026-07-29'
-updated_at: '2026-08-11T16:40:00+00:00'
-source: email
+valid_from: '2026-08-15'
+updated_at: '2026-08-15T09:06:47+00:00'
+source: cli
+supersedes:
+- atlas-migration@1
 ---
 
 Rewriting per-tenant key derivation touches the auth path for every existing
 customer. Two of the four migration batches are done; the remaining two cover
 the largest tenants, including Northwind.
 
-Known unknowns: no rehearsal of the rollback path on a tenant above 50k seats,
-and the batch window overlaps a frozen change period for two regulated
-accounts.
+As of 15 August, batch three has slipped by a week. The rollback rehearsal on a
+60k-seat tenant — previously listed here as an unrehearsed unknown above 50k
+seats — was attempted and failed twice. That is the cause of the slip (Vishnu
+Rao, 15 August).
 
-If batch three slips, 17 March goes with it. That is the single dependency
-worth watching between now and the review.
+Remaining known unknown: the batch window overlaps a frozen change period for
+two regulated accounts, which are still not named anywhere.
+
+The slip has now taken 17 March with it. Vishnu's read is that 17 March is no
+longer safe and 24 March is the realistic GA date — see [atlas-launch].

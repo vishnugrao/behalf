@@ -68,7 +68,6 @@ class VectorIndex:
         self.db.close()
 
     def sync(self, entries: Sequence[Entry], chunk_chars: int, overlap: int) -> dict[str, int]:
-        """Bring the index in line with the ledger. Returns a change summary."""
         wanted: dict[str, Chunk] = {}
         for e in entries:
             for c in chunk_entry(e, chunk_chars, overlap):

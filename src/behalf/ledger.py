@@ -194,19 +194,29 @@ def upsert(
     confidence: float = 0.8,
     subdir: str = "notes",
     actor: str = "system",
+    archive: bool = True,
 ) -> Entry:
-    """Create an entry, or retire the existing one to `<id>@<n>` and replace it."""
+    """Create an entry, or retire the existing one to `<id>@<n>` and replace it.
+
+    Set archive=False for regenerated artifacts, which would otherwise leave a
+    revision behind on every run.
+    """
     existing = {e.id: e for e in load_entries(ledger_dir)}
-    path = ledger_dir / subdir / f"{entry_id}.md"
+    prior = existing.get(entry_id)
+
+    path = prior.path if prior else ledger_dir / subdir / f"{entry_id}.md"
+    if prior and kind == "note":
+        kind = prior.kind
+    merged_tags = sorted(set(tags) | set(prior.tags)) if prior else list(tags)
 
     new = Entry(
         id=entry_id,
         title=title,
         body=body,
         path=path,
-        owner=owner,
+        owner=owner or (prior.owner if prior else "unknown"),
         kind=kind,
-        tags=list(tags),
+        tags=merged_tags,
         source=source,
         confidence=confidence,
         valid_from=utcnow()[:10],
@@ -216,6 +226,14 @@ def upsert(
         old = existing[entry_id]
         if old.digest() == new.digest():
             return old
+        if not archive:
+            new.supersedes = old.supersedes
+            write_entry(new)
+            append_event(
+                events_path,
+                {"type": "regenerate", "actor": actor, "id": entry_id, "title": title},
+            )
+            return new
         rev = len([e for e in existing if e.startswith(f"{entry_id}@")]) + 1
         archived_id = f"{entry_id}@{rev}"
         archived = Entry(

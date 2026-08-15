@@ -8,34 +8,27 @@ x-common: &common
     - .env
   environment:
     BEHALF_CONFIG: /app/config.yaml
+    BEHALF_PERSONA: ${PERSONA:-}
+    BEHALF_MAX_ROUNDS: ${BEHALF_MAX_ROUNDS:-}
+    BEHALF_MEETING: ${BEHALF_MEETING:-}
+    BEHALF_PROVIDER: ${BEHALF_PROVIDER:-}
   volumes:
     - ./ledger:/app/ledger
     - ./config.yaml:/app/config.yaml:ro
-    - behalf-state:/app/state
+    - ./state:/app/state
     - ./out:/app/out
   init: true
 
 services:
-  # One agent per replica. `docker compose up --scale agent=5` puts five
-  # process-isolated agents in the room; each picks its identity from its
-  # replica ordinal against the roster in config.yaml.
   agent:
     <<: *common
-    command: ["agent-by-ordinal"]
-    deploy:
-      replicas: 3
+    command: ["agent"]
     restart: "no"
     stop_grace_period: 20s
 
-  # One-shot container for everything that is not an agent:
-  #   docker compose run --rm cli search launch date
-  #   docker compose run --rm cli note "batch three slipped a week"
   cli:
     <<: *common
     profiles: ["tools"]
-    command: ["roster"]
+    command: ["who"]
     stdin_open: true
     tty: true
-
-volumes:
-  behalf-state:

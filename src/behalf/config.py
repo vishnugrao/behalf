@@ -22,6 +22,9 @@ def load_dotenv(path: Path | str = ".env") -> None:
             os.environ[key] = value
 
 
+load_dotenv()
+
+
 def _env(name: str, default: str) -> str:
     v = os.environ.get(name, "").strip()
     return v or default
@@ -66,6 +69,10 @@ class Config:
     openai_model: str = _env("OPENAI_MODEL", "gpt-5.1")
     effort: str = _env("BEHALF_EFFORT", "medium")
     max_tokens: int = _env_int("BEHALF_MAX_TOKENS", 4000)
+
+    google_client_id: str = _env("GOOGLE_OAUTH_CLIENT_ID", "")
+    google_client_secret: str = _env("GOOGLE_OAUTH_CLIENT_SECRET", "")
+    gdoc_id: str = _env("BEHALF_GDOC_ID", "")
 
     max_rounds: int = _env_int("BEHALF_MAX_ROUNDS", 8)
     stability_rounds: int = _env_int("BEHALF_STABILITY_ROUNDS", 2)
@@ -112,5 +119,4 @@ class Config:
         )
 
 
-load_dotenv()
 CONFIG = Config()
