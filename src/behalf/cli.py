@@ -5,10 +5,12 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 from .agent import AgentRun
 from .brain import build_brain
 from .capture import Capture, CaptureLog, Curator
+from .chat import ChatSession
 from .config import CONFIG
 from .gdoc import GoogleDocError, GoogleDocPublisher
 from .persona import Room, load_room
@@ -39,6 +41,7 @@ def _apply_convergence(room: Room) -> None:
 def _publisher(room: Room, extra_emails: list[str]) -> GoogleDocPublisher:
     recipients = list(room.google.get("share_with") or [])
     recipients += [p.email for p in room.personas if p.email]
+    recipients += [e for e in CONFIG.google_share_with.split(",") if e.strip()]
     recipients += extra_emails
     return GoogleDocPublisher(
         state_dir=CONFIG.state_dir,
@@ -47,6 +50,7 @@ def _publisher(room: Room, extra_emails: list[str]) -> GoogleDocPublisher:
         client_secret=CONFIG.google_client_secret,
         share_with=recipients,
         document_id=CONFIG.gdoc_id,
+        credentials_file=Path(CONFIG.google_credentials_file),
     )
 
 
@@ -118,36 +122,40 @@ def cmd_captures(args: argparse.Namespace) -> int:
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
+    room = _room()
+    persona = room.by_key(args.persona or room.me)
     store = ContextStore(CONFIG)
-    log = CaptureLog(CONFIG.capture_path)
-    author = _author(args.author)
-    print(f"behalf · {author} · plain text captures a note. /ask /curate /pending /quit")
+    brain = build_brain(CONFIG)
+    session = ChatSession(
+        persona=persona, store=store, brain=brain, log=CaptureLog(CONFIG.capture_path)
+    )
+
+    print(f"behalf · you are {persona.person} · brain {brain.name} · store {store.stats()['live_entries']} entries")
+    print("Ask it anything about your own store, or just tell it what changed. /raw /pending /quit")
 
     try:
         while True:
             try:
-                line = input("> ").strip()
-            except EOFError:
+                line = input("\n> ").strip()
+            except (EOFError, KeyboardInterrupt):
                 break
             if not line:
                 continue
-            if line in {"/quit", "/exit"}:
+            if line.lower() in {"/quit", "/exit", "quit", "exit", ":q"}:
                 break
-            if line.startswith("/ask "):
+            if line == "/pending":
+                for c in session.log.pending():
+                    print(f"  {c.ts}  {c.text[:80]}")
+                continue
+            if line.startswith("/raw "):
                 for r in store.search(line[5:], k=5):
                     print(f"  {r.score:5.3f} [{r.entry.id}] {r.entry.title}")
                 continue
-            if line == "/pending":
-                for c in log.pending():
-                    print(f"  {c.ts}  {c.text[:80]}")
-                continue
-            if line == "/curate":
-                curator = Curator(store, log, build_brain(CONFIG), author)
-                for op in curator.curate() or []:
-                    print(f"  wrote [{op.id}] {op.title}")
-                continue
-            capture = log.append(Capture.new(author, line, source="chat"))
-            print(f"  captured {capture.id}")
+
+            answer = session.ask(line)
+            for step in session.trace:
+                print(f"  · {step}")
+            print(f"\n{answer}")
     finally:
         store.close()
     return 0
@@ -265,8 +273,9 @@ def build_parser() -> argparse.ArgumentParser:
     captures.add_argument("--pending", action="store_true")
     captures.set_defaults(func=cmd_captures)
 
-    chat = sub.add_parser("chat", help="interactive capture and lookup")
+    chat = sub.add_parser("chat", help="ask your own store questions, or tell it what changed")
     chat.add_argument("--author", default="")
+    chat.add_argument("--persona", default="")
     chat.set_defaults(func=cmd_chat)
 
     ingest = sub.add_parser("ingest", help="write an entry directly (for adapters)")

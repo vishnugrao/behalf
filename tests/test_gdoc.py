@@ -90,3 +90,37 @@ def test_document_id_is_remembered_between_runs(tmp_path):
     second = GoogleDocPublisher(state_dir=tmp_path, title="t", client_id="a", client_secret="b")
     assert second.recall() == "doc-123"
     assert second.url().endswith("/doc-123/edit")
+
+
+def test_a_new_doc_only_needs_per_file_drive_access():
+    from behalf.gdoc import DOCUMENTS, DRIVE_FILE, scopes_for
+    assert scopes_for("") == [DOCUMENTS, DRIVE_FILE]
+
+
+def test_sharing_a_doc_behalf_did_not_create_needs_wider_drive_access():
+    from behalf.gdoc import DOCUMENTS, DRIVE_FULL, scopes_for
+    assert scopes_for("1mu1FX8Tu") == [DOCUMENTS, DRIVE_FULL]
+
+
+def test_a_missing_drive_api_is_explained_with_the_enable_link():
+    from behalf.gdoc import explain
+    message = explain(Exception(
+        'HttpError 403 requesting https://www.googleapis.com/drive/v3/files/x/permissions '
+        '"Google Drive API has not been used in project 855062505242 before or it is disabled."'
+    ))
+    assert "drive.googleapis.com" in message and "project=855062505242" in message
+
+
+def test_an_invisible_doc_is_explained_as_a_scope_problem():
+    from behalf.gdoc import explain
+    message = explain(Exception(
+        'HttpError 404 requesting https://www.googleapis.com/drive/v3/files/x/permissions '
+        '"File not found: x."'
+    ))
+    assert "drive.file scope only covers files this app created" in message
+
+
+def test_no_recipients_is_reported_not_silently_skipped(tmp_path, capsys):
+    publisher = GoogleDocPublisher(state_dir=tmp_path, title="t", client_id="a", client_secret="b")
+    publisher.share(drive=None, emails=[])
+    assert "no one to share with" in capsys.readouterr().out

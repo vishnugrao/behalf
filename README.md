@@ -22,12 +22,19 @@ on three machines — or three terminals if you are testing alone.
 
 ```bash
 git clone <this repo> && cd behalf
-make setup
+./behalf who
 ```
 
-That creates a venv, installs `behalf`, copies `.env.example` to `.env`, and
-indexes the sample ledger. It runs with no keys at all — retrieval falls back to
-a keyless embedder and the agent to a scripted brain.
+`./behalf` is a launcher: on first run it creates `.venv`, installs the package
+and copies `.env.example` to `.env`, then hands off. Every command below uses
+it. There is nothing to activate and nothing installed globally.
+
+It runs with no keys at all — retrieval falls back to a keyless embedder and the
+agent to a scripted brain.
+
+Prefer a real command on your PATH? Either activate the venv
+(`source .venv/bin/activate`, then plain `behalf …`) or install it for your user
+(`pipx install -e .`). `make <target>` also works for the common ones.
 
 Add a model key to `.env` for real reasoning:
 
@@ -37,7 +44,12 @@ BEHALF_EMBEDDER=openai           # optional, much better retrieval than the defa
 ```
 
 `BEHALF_PROVIDER=auto` prefers Anthropic, falls back to OpenAI, then to the
-offline brain. Set it explicitly to pin one.
+offline brain. Set it to `anthropic` or `openai` to pin one.
+
+On OpenAI, `BEHALF_MAX_TOKENS` is a budget for **reasoning plus output** — a
+reasoning model can spend most of it thinking and truncate the answer. The
+default of 16000 leaves room; if you see a "response truncated" error, raise it
+or drop `BEHALF_EFFORT` to `low`.
 
 ## Be someone
 
@@ -62,43 +74,70 @@ personas:
 room converges. Check what you look like before joining:
 
 ```bash
-behalf who
-behalf agent --persona marco --dry-run
+./behalf who
+./behalf agent --persona marco --dry-run
 ```
 
 ## Update your store
 
 ```bash
-make note TEXT="batch three slipped a week, Northwind needs telling"
-make curate
-make search Q="what blocks GA"
-make chat
+./behalf note "batch three slipped a week, Northwind needs telling"
+./behalf curate
+./behalf search what blocks GA
 ```
 
 `note` is deliberately dumb — it appends raw text to `state/captures.jsonl` and
 returns. `curate` does the work: it retrieves the entries your note touches and
 rewrites them, superseding rather than overwriting. Nothing is destroyed;
-`behalf history <id>` walks the chain.
+`./behalf history <id>` walks the chain.
 
 In practice one note lands across several entries. A single "batch three
 slipped" note updated `atlas-launch`, `atlas-migration` and
 `northwind-escalation`, each with a recorded reason.
+
+### Talking to your own store
+
+`./behalf chat` is an agent wearing your persona, with your store and nothing
+else. Ask it questions and it searches and reads before answering; tell it
+something new and it captures that instead.
+
+```
+$ ./behalf chat
+behalf · you are Vishnu Rao · brain anthropic:claude-opus-5 · store 10 entries
+
+> when is GA and what could move it?
+  · search('GA date launch timeline') ->
+  · read ->
+  · read ->
+
+GA is not a booked date right now: 17 March is no longer safe after batch three
+slipped on the failed rollback rehearsal, and 24 March is my judgement of
+realistic [atlas-launch]. Main movers: further rollback failures, the tenant
+isolation rework, and SEC-2026-11 [security-finding][atlas-migration].
+```
+
+It is bound to one persona and one store per process, the same isolation the
+room runs on: it answers as you, from what *you* know, and says so plainly when
+your store does not cover something rather than reaching for general knowledge.
+Your colleagues' stores are invisible to it. `--persona` overrides who you are
+for the session; `/raw <query>` shows unranked search hits, `/pending` lists
+uncurated captures, `/quit` exits.
 
 ## Join the room
 
 Each person, on their own machine:
 
 ```bash
-behalf agent                      # runs whoever `me` says you are
-behalf agent --persona priya      # or name it explicitly
+./behalf agent                      # runs whoever `me` says you are
+./behalf agent --persona priya      # or name it explicitly
 ```
 
 To watch a three-person room on one laptop, three terminals:
 
 ```bash
-behalf agent --persona vishnu     # terminal 1, the scribe
-behalf agent --persona priya      # terminal 2
-behalf agent --persona marco      # terminal 3
+./behalf agent --persona vishnu     # terminal 1, the scribe
+./behalf agent --persona priya      # terminal 2
+./behalf agent --persona marco      # terminal 3
 ```
 
 Order does not matter — an agent waits for whoever is ahead of it in the roster.
@@ -107,43 +146,69 @@ the roster and the chatroom.
 
 ## The Google Doc
 
-The scribe pushes the pre-read to one Google Doc and keeps updating that same
-doc, so its URL is stable and you can leave it open.
+The scribe pushes the pre-read to one Google Doc and keeps rewriting that same
+doc, so its URL is stable and you can leave it open in a tab.
 
-**One-time Google setup.** In the [Cloud Console](https://console.cloud.google.com):
-enable the **Google Docs API** and the **Google Drive API**, then create an
-OAuth client of type **Desktop app**. Put both halves in `.env`:
+### One-time Google setup
+
+In the [Cloud Console](https://console.cloud.google.com), on one project:
+
+1. Enable **both** APIs — [Google Docs API](https://console.cloud.google.com/apis/library/docs.googleapis.com)
+   and [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com).
+   Docs alone writes the document but **cannot share it**; you will get a 403
+   naming the API to turn on.
+2. Configure the OAuth consent screen (**Google Auth platform → Branding**).
+   Audience **Internal** is fine for a team; **External** needs your address
+   added under **Audience → Test users** or consent is refused.
+3. Create an OAuth client, **Application type: Desktop app**.
+
+Then give behalf the credentials, either way round:
 
 ```bash
 GOOGLE_OAUTH_CLIENT_ID=...apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=...
 ```
 
-The client id is not a secret; the client secret is. `.env` is gitignored —
-keep it that way.
+or drop the console's downloaded `credentials.json` in the repo root — behalf
+picks it up automatically, and it is gitignored. The client id is not a secret;
+the client secret is.
 
-**First run.** The first publish opens your browser for consent, then caches the
-token at `state/google-token.json` (mode 600). Do this once on the scribe's
-machine before a real session:
+### First run
 
-```bash
-behalf publish --share teammate@example.com
-```
-
-That creates the doc, prints its URL, and shares it. After that, every
-convergence rewrites the same doc in place. Add recipients any time:
+Consent needs a browser, so do this once on the scribe's machine before a real
+session. **Pass the addresses to share with** — the doc is useless to everyone
+else otherwise:
 
 ```bash
-behalf agent --share priya@example.com --share marco@example.com
+./behalf publish --share priya@example.com --share marco@example.com
 ```
 
-Anyone with an `email:` in `config.yaml` is shared automatically, as is anything
-under `google.share_with`. To point at an existing doc instead of creating one,
-set `BEHALF_GDOC_ID` in `.env`. To skip Google entirely and write only
-`out/PREREAD.md`, pass `--no-doc`.
+That creates the doc, applies the formatting, shares it with those addresses
+(sending them a notification), prints the URL, and caches the token at
+`state/google-token.json` (mode 600). Every convergence after that rewrites the
+same doc and re-shares with anyone new.
 
-Scopes requested are `documents` and `drive.file` — `drive.file` only grants
-access to files this app created, not the rest of your Drive.
+Recipients are gathered from all of: `--share` flags, any `email:` on a persona
+in `config.yaml`, `google.share_with` in `config.yaml`, and `GOOGLE_SHARE_WITH`
+in `.env`. If the list ends up empty, behalf says so rather than silently
+publishing a doc only you can read.
+
+### Pointing at an existing doc
+
+Set `BEHALF_GDOC_ID` in `.env` to reuse one.
+
+Scopes adapt to what you asked for, because per-file Drive access cannot see a
+document this app did not create:
+
+| | Docs scope | Drive scope |
+|---|---|---|
+| behalf creates the doc (`BEHALF_GDOC_ID` unset) | `documents` | `drive.file` — only the docs it made |
+| you supply `BEHALF_GDOC_ID` | `documents` | `drive` — needed to share a doc it did not create |
+
+If you set `BEHALF_GDOC_ID` after already consenting, the cached token is short
+a scope. behalf notices and re-prompts; if you would rather avoid the broader
+Drive scope, clear `BEHALF_GDOC_ID` and let it create the doc itself. To skip
+Google entirely and write only `out/PREREAD.md`, pass `--no-doc`.
 
 ## Containers
 
@@ -194,19 +259,19 @@ before ratifying, so condition 2 is never vacuous.
 
 | | |
 |---|---|
-| `behalf who` | the room, the turn order, and who you are |
-| `behalf note "..."` | capture an update, no structure required |
-| `behalf curate` | fold pending captures into your ledger |
-| `behalf chat` | interactive capture and lookup |
-| `behalf search <q>` | hybrid search over your store |
-| `behalf history <id>` | walk an entry's supersede chain |
-| `behalf ingest` | direct write, for email/Slack adapters |
-| `behalf agent` | join the room as one person |
-| `behalf agent --dry-run` | show the resolved persona and prompt, then exit |
-| `behalf publish` | push the pre-read to the shared Google Doc |
-| `behalf preread` | print the current one-pager |
+| `./behalf who` | the room, the turn order, and who you are |
+| `./behalf note "..."` | capture an update, no structure required |
+| `./behalf curate` | fold pending captures into your ledger |
+| `./behalf chat` | agentic chat over your own store, in your voice |
+| `./behalf search <q>` | hybrid search over your store |
+| `./behalf history <id>` | walk an entry's supersede chain |
+| `./behalf ingest` | direct write, for email/Slack adapters |
+| `./behalf agent` | join the room as one person |
+| `./behalf agent --dry-run` | show the resolved persona and prompt, then exit |
+| `./behalf publish` | push the pre-read to the shared Google Doc |
+| `./behalf preread` | print the current one-pager |
 
-`make help` lists the Make targets.
+`./behalf --help` lists everything; `make help` lists the Make shortcuts.
 
 ## Layout
 

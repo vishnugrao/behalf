@@ -57,7 +57,8 @@ publish: install ## Push the current pre-read to the shared Google Doc
 	@$(BEHALF) publish $(if $(SHARE),--share $(SHARE),)
 
 test: install ## Run the test suite
-	@$(VENV)/bin/pytest -q
+	@$(VENV)/bin/pip install --quiet -e ".[all,dev]"
+	@$(VENV)/bin/python -m pytest -q
 
 docker-build: .env ## Build the image
 	docker compose build

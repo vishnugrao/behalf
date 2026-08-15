@@ -68,11 +68,13 @@ class Config:
     anthropic_model: str = _env("ANTHROPIC_MODEL", "claude-opus-5")
     openai_model: str = _env("OPENAI_MODEL", "gpt-5.1")
     effort: str = _env("BEHALF_EFFORT", "medium")
-    max_tokens: int = _env_int("BEHALF_MAX_TOKENS", 4000)
+    max_tokens: int = _env_int("BEHALF_MAX_TOKENS", 16000)
 
     google_client_id: str = _env("GOOGLE_OAUTH_CLIENT_ID", "")
     google_client_secret: str = _env("GOOGLE_OAUTH_CLIENT_SECRET", "")
     gdoc_id: str = _env("BEHALF_GDOC_ID", "")
+    google_share_with: str = _env("GOOGLE_SHARE_WITH", "")
+    google_credentials_file: str = _env("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 
     max_rounds: int = _env_int("BEHALF_MAX_ROUNDS", 8)
     stability_rounds: int = _env_int("BEHALF_STABILITY_ROUNDS", 2)
