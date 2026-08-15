@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "behalf"
+version = "0.1.0"
+description = "A personal context store and the agent that argues from it"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.69"]
+openai = ["openai>=1.60"]
+all = ["anthropic>=0.69", "openai>=1.60"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+behalf = "behalf.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
