@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+VENV=.venv
+PY="${PYTHON:-python3}"
+
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+  echo "behalf: created .env from .env.example — add a provider key to it" >&2
+fi
+
+if [ ! -x "$VENV/bin/behalf" ]; then
+  echo "behalf: first run, creating $VENV …" >&2
+  "$PY" -m venv "$VENV"
+  "$VENV/bin/pip" install --quiet --upgrade pip
+  "$VENV/bin/pip" install --quiet -e ".[all]"
+  echo "behalf: ready" >&2
+fi
+
+exec "$VENV/bin/behalf" "$@"

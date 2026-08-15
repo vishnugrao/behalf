@@ -7,10 +7,17 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SCOPES = [
-    "https://www.googleapis.com/auth/documents",
-    "https://www.googleapis.com/auth/drive.file",
-]
+DOCUMENTS = "https://www.googleapis.com/auth/documents"
+DRIVE_FILE = "https://www.googleapis.com/auth/drive.file"
+DRIVE_FULL = "https://www.googleapis.com/auth/drive"
+
+SCOPES = [DOCUMENTS, DRIVE_FILE]
+
+
+def scopes_for(document_id: str) -> list[str]:
+    """A doc behalf did not create is invisible under drive.file, so sharing it
+    needs the broader Drive scope."""
+    return [DOCUMENTS, DRIVE_FULL if document_id else DRIVE_FILE]
 
 HEADING_STYLES = {1: "HEADING_1", 2: "HEADING_2", 3: "HEADING_3"}
 EMPHASIS = re.compile(r"(\*\*|__|`)")
@@ -19,6 +26,31 @@ SUBSCRIPT = re.compile(r"</?sub>")
 
 class GoogleDocError(RuntimeError):
     pass
+
+
+def explain(exc: Exception) -> str:
+    text = str(exc)
+    if "accessNotConfigured" in text or "has not been used in project" in text:
+        api = "drive.googleapis.com" if "/drive/" in text else "docs.googleapis.com"
+        project = re.search(r"project (\d+)", text)
+        where = (
+            f"https://console.developers.google.com/apis/api/{api}/overview"
+            + (f"?project={project.group(1)}" if project else "")
+        )
+        return f"the {api} API is not enabled for this project. Enable it at {where}, then retry."
+    if "File not found" in text and "/drive/" in text:
+        return (
+            "Drive cannot see this document. The drive.file scope only covers files this app "
+            "created. Delete state/google-token.json and run `./behalf publish` again to "
+            "re-consent with the wider scope, or clear BEHALF_GDOC_ID and let behalf create "
+            "the doc itself."
+        )
+    if "insufficientPermissions" in text or "insufficient authentication scopes" in text:
+        return (
+            "the cached token predates the scopes this needs. Delete state/google-token.json "
+            "and run `./behalf publish` again to re-consent."
+        )
+    return text
 
 
 @dataclass
@@ -92,6 +124,7 @@ class GoogleDocPublisher:
     client_secret: str
     share_with: list[str] = field(default_factory=list)
     document_id: str = ""
+    credentials_file: Path | None = None
 
     @property
     def token_path(self) -> Path:
@@ -104,6 +137,10 @@ class GoogleDocPublisher:
     def url(self) -> str:
         return f"https://docs.google.com/document/d/{self.document_id}/edit"
 
+    @property
+    def scopes(self) -> list[str]:
+        return scopes_for(self.document_id or self.recall())
+
     def credentials(self):
         try:
             from google.auth.transport.requests import Request
@@ -114,14 +151,22 @@ class GoogleDocPublisher:
                 'Google support is not installed. Run: pip install "behalf[google]"'
             ) from exc
 
-        if not self.client_id or not self.client_secret:
+        secrets_file = self.credentials_file if self.credentials_file else None
+        if secrets_file and not secrets_file.exists():
+            secrets_file = None
+        if not secrets_file and not (self.client_id and self.client_secret):
             raise GoogleDocError(
-                "set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env"
+                "no Google credentials. Either set GOOGLE_OAUTH_CLIENT_ID and "
+                "GOOGLE_OAUTH_CLIENT_SECRET in .env, or download the desktop-app "
+                "credentials.json from the Cloud Console into this directory."
             )
 
         creds = None
         if self.token_path.exists():
-            creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
+            creds = Credentials.from_authorized_user_file(str(self.token_path), self.scopes)
+            if not set(self.scopes).issubset(set(creds.scopes or [])):
+                print("scopes changed; re-consent needed", flush=True)
+                creds = None
 
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -129,20 +174,23 @@ class GoogleDocPublisher:
             if not sys.stdin.isatty():
                 raise GoogleDocError(
                     "no cached Google token and no terminal to grant consent in. "
-                    "Run `behalf publish` once interactively first."
+                    "Run `./behalf publish` once interactively first."
                 )
-            flow = InstalledAppFlow.from_client_config(
-                {
-                    "installed": {
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                        "redirect_uris": ["http://localhost"],
-                    }
-                },
-                SCOPES,
-            )
+            if secrets_file:
+                flow = InstalledAppFlow.from_client_secrets_file(str(secrets_file), self.scopes)
+            else:
+                flow = InstalledAppFlow.from_client_config(
+                    {
+                        "installed": {
+                            "client_id": self.client_id,
+                            "client_secret": self.client_secret,
+                            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                            "token_uri": "https://oauth2.googleapis.com/token",
+                            "redirect_uris": ["http://localhost"],
+                        }
+                    },
+                    self.scopes,
+                )
             print("Opening your browser for Google consent…", flush=True)
             creds = flow.run_local_server(port=0, prompt="consent")
 
@@ -174,7 +222,30 @@ class GoogleDocPublisher:
         return self.document_id
 
     def share(self, drive, emails: list[str]) -> None:
-        for email in sorted({e.strip() for e in emails if e and e.strip()}):
+        wanted = sorted({e.strip() for e in emails if e and e.strip()})
+        if not wanted:
+            print(
+                "no one to share with — pass --share you@example.com, or set an email "
+                "on your persona in config.yaml",
+                flush=True,
+            )
+            return
+
+        try:
+            existing = {
+                p.get("emailAddress")
+                for p in drive.permissions()
+                .list(fileId=self.document_id, fields="permissions(emailAddress)")
+                .execute()
+                .get("permissions", [])
+            }
+        except Exception:
+            existing = set()
+
+        for email in wanted:
+            if email in existing:
+                print(f"already shared with {email}", flush=True)
+                continue
             try:
                 drive.permissions().create(
                     fileId=self.document_id,
@@ -184,7 +255,7 @@ class GoogleDocPublisher:
                 ).execute()
                 print(f"shared with {email}", flush=True)
             except Exception as exc:
-                print(f"could not share with {email}: {exc}", flush=True)
+                print(f"could not share with {email}: {explain(exc)}", flush=True)
 
     def publish(self, page: str) -> str:
         docs, drive = self.services()
@@ -199,7 +270,12 @@ class GoogleDocPublisher:
         try:
             document = docs.documents().get(documentId=self.document_id).execute()
         except Exception as exc:
-            raise GoogleDocError(f"cannot open document {self.document_id}: {exc}") from exc
+            raise GoogleDocError(
+                f"cannot open document {self.document_id}. The drive.file scope only grants "
+                "access to documents this app created, so a doc you made in the browser is "
+                "invisible to it. Either clear BEHALF_GDOC_ID and let behalf create the doc, "
+                f"or share that doc with the account you consented as.\n  {exc}"
+            ) from exc
 
         content = document.get("body", {}).get("content", [])
         end_index = content[-1].get("endIndex", 1) if content else 1
@@ -209,6 +285,5 @@ class GoogleDocPublisher:
                 documentId=self.document_id, body={"requests": requests}
             ).execute()
 
-        if self.share_with:
-            self.share(drive, self.share_with)
+        self.share(drive, self.share_with)
         return self.url()

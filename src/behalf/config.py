@@ -73,6 +73,8 @@ class Config:
     google_client_id: str = _env("GOOGLE_OAUTH_CLIENT_ID", "")
     google_client_secret: str = _env("GOOGLE_OAUTH_CLIENT_SECRET", "")
     gdoc_id: str = _env("BEHALF_GDOC_ID", "")
+    google_share_with: str = _env("GOOGLE_SHARE_WITH", "")
+    google_credentials_file: str = _env("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 
     max_rounds: int = _env_int("BEHALF_MAX_ROUNDS", 8)
     stability_rounds: int = _env_int("BEHALF_STABILITY_ROUNDS", 2)
