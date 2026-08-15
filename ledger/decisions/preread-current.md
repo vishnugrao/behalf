@@ -9,7 +9,7 @@ tags:
 - preread
 confidence: 0.8
 valid_from: '2026-08-15'
-updated_at: '2026-08-15T09:38:16+00:00'
+updated_at: '2026-08-15T10:23:18+00:00'
 source: agent
 supersedes:
 - preread-current@3
@@ -17,27 +17,26 @@ supersedes:
 
 # Pre-read — Atlas Q3 platform review
 
-_Generated 2026-08-15 09:38 UTC · agreed by Marco Silvestri, Priya Nandakumar, Vishnu Rao across 1 rounds · round cap reached._
+_Generated 2026-08-15 10:23 UTC · agreed by Priya Nandakumar across 2 rounds · round cap reached._
 
 ## Decisions that already landed
-- No date goes external — not 17 March, not 24 March: design partners still hold a two-revisions-stale 3 March and their correction ships as a no-date sentence with an unconditional migration-window caveat, matching the four renewals' sentence, with no adoption or retention figure attached. _[atlas-launch, atlas-migration, beta-signal]_
-- GTM backs the single field sentence for all four renewals (£2.1m ARR, 1 March–30 April, all in batches three and four): 'GA date under revision after a batch-three slip; revised date at the review', no date, unconditional migration-window caveat, no adoption or retention figure — with SEC-2026-11 as agenda item one. _[renewal-exposure, atlas-launch, security-finding]_
+- Floor status is owned by Priya, not Marco — no entry names a finance owner, so the page publishes that gap explicitly rather than assigning an unsourced action to GTM. _[team, pricing-usage-tier]_
+- The written no-date sentence goes to all four renewals (£2.1m ARR, batches three and four) on the same pre-20-August clock, with Priya as named first-speaker since she owns all external date communication. _[renewal-exposure, team, atlas-launch]_
+- Field can use an immediate interim GA-timing script — 'GA date under revision after a batch-three slip; revised date at the review; you’ll get a written update from Product' — with no dates, downtime durations or business-hours promises attached, so reps stop free-forming around 17 March. _[atlas-launch, preread-current, renewal-exposure]_
 
 ## State of play
-- Strike two stale concerns: [atlas-launch] and [beta-signal] both returned first-hand for Priya and for Vishnu this round, so neither is unverified in session. _[atlas-launch, beta-signal]_
-- Delete the stale 'landed decision' line: [beta-signal] returned first-hand for both Priya and Vishnu this round, so the do-not-quote-78% constraint rests on the entry's own text, not on Vishnu's attestation; [atlas-launch] is likewise attested by two readers. _[beta-signal, atlas-launch, preread-current]_
-- Engineering retrieval correction: [atlas-launch] DID return first-hand for Vishnu this round — delete the 'unverified by all three' line; it corroborates [atlas-migration] that 17 March is unsafe and 24 March is unbooked judgement. _[atlas-launch, atlas-migration]_
+- The pricing correction is design-partner-scoped, not renewal-scoped: only two design partners hold written metered quotes issued before the floor was signed, so Northwind's note is four items and the other three renewals get the no-date sentence and migration-window caveat only. _[pricing-usage-tier, northwind-escalation, renewal-exposure]_
 
 ## Risks and open threads
-- The release train is still booked against 17 March and no entry books a replacement; rebooking is a decision for the review, and engineering will put no date — 17 or 24 March — in writing before then. _[atlas-launch, atlas-migration]_
+- Without an explicit default to keep the four renewal-exposed accounts on their existing twelve‑month grandfathered terms, the unresolved finance floor and grandfather-on-upgrade questions turn into direct renewal risk on £2.1m ARR. _[renewal-exposure, pricing-usage-tier]_
+- Engineering will not treat any batch-four migration window or downtime commitment as schedulable yet because the window overlaps a change-freeze for two unnamed regulated accounts that may include renewal-exposed logos, and no script should mention downtime duration or business-hours impact until that is resolved and the side letters are read. _[atlas-migration, northwind-escalation, renewal-exposure]_
 
 ## Unresolved disagreement
-- [pricing-usage-tier] did not return for its owner this round, so any page line about what customers were quoted is second-hand for Product and must be pulled live at the review. _[team, preread-current]_
-- Correct two overstatements about engineering attestation: [beta-signal] and [security-finding] did NOT return for Vishnu this round, so the 78%/31% constraint stands on Priya's first-hand reading alone and the SEC-2026-11 line is an agenda ask marked unverified in session, not a cited-evidence decision. _[preread-current, team]_
+- The 'SEC-2026-11 unverified in session / agenda ask' framing in the pre-read is now stale; the finding is fixed, re-tested and no longer a GA blocker, so GA timing risk comes solely from the tenant-isolation rework and migration schedule. _[security-finding, atlas-migration, preread-current]_
 
 ## What this meeting needs to decide
-- The corrected outbound sentence must be drafted and handed to Marco before 20 August, because Priya owns all external date communication and is on leave 20–28 August while Northwind must be told before their renewal call. _[team, northwind-escalation]_
-- Marco reads Northwind's availability side letter against the current batch-three/four plan and returns a business-hours-downtime yes/no before 20 August; it ships in the same written note as the no-date sentence and the retraction-or-confirmation of the unsourced 'up to four hours, possibly during business hours' figure, since no engineering entry sources any downtime duration. _[northwind-escalation, atlas-migration, team]_
-- Engineering backs Marco's side-letter action: no engineering entry sources any downtime duration, so the 'up to four hours, possibly during business hours' figure must be retracted or confirmed in the same written note as the no-date sentence and the business-hours yes/no, before 20 August. _[northwind-escalation, atlas-migration, team]_
+- The page needs an explicit interim field script for GA timing that can be used in live conversations before Priya’s written note lands, or reps will either pre-empt Product or go silent again. _[renewal-exposure, atlas-launch]_
 
-<sub>Sourced from 9 live entries / 37 indexed chunks · embedder hashing-v1.</sub>
+> **Not ratified by:** Marco Silvestri, Vishnu Rao. Treat the lines above as provisional for their areas.
+
+<sub>Sourced from 9 live entries / 21 indexed chunks · embedder hashing-v1.</sub>

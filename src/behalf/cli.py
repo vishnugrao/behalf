@@ -141,7 +141,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 break
             if not line:
                 continue
-            if line in {"/quit", "/exit"}:
+            if line.lower() in {"/quit", "/exit", "quit", "exit", ":q"}:
                 break
             if line == "/pending":
                 for c in session.log.pending():

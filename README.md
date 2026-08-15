@@ -44,7 +44,12 @@ BEHALF_EMBEDDER=openai           # optional, much better retrieval than the defa
 ```
 
 `BEHALF_PROVIDER=auto` prefers Anthropic, falls back to OpenAI, then to the
-offline brain. Set it explicitly to pin one.
+offline brain. Set it to `anthropic` or `openai` to pin one.
+
+On OpenAI, `BEHALF_MAX_TOKENS` is a budget for **reasoning plus output** — a
+reasoning model can spend most of it thinking and truncate the answer. The
+default of 16000 leaves room; if you see a "response truncated" error, raise it
+or drop `BEHALF_EFFORT` to `low`.
 
 ## Be someone
 
