@@ -144,3 +144,19 @@ def test_history_carries_across_turns(session):
     chat.ask("two")
     roles = [t.role for t in chat.history]
     assert roles == ["user", "assistant", "user", "assistant"]
+
+
+def test_a_truncated_openai_response_is_an_error_not_a_partial_answer():
+    from types import SimpleNamespace
+    from behalf.brain import BrainError, OpenAIBrain
+
+    brain = OpenAIBrain.__new__(OpenAIBrain)
+    brain.model, brain.max_tokens, brain.effort, brain.name = "m", 4000, "medium", "openai:m"
+    brain.client = SimpleNamespace(responses=SimpleNamespace(create=lambda **_: SimpleNamespace(
+        status="incomplete",
+        incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+        usage=SimpleNamespace(output_tokens_details=SimpleNamespace(reasoning_tokens=3900)),
+        output_text='{"operations":[{"id":"x","body":"trunca',
+    )))
+    with pytest.raises(BrainError, match="truncated"):
+        brain.think("sys", [])

@@ -68,7 +68,7 @@ class Config:
     anthropic_model: str = _env("ANTHROPIC_MODEL", "claude-opus-5")
     openai_model: str = _env("OPENAI_MODEL", "gpt-5.1")
     effort: str = _env("BEHALF_EFFORT", "medium")
-    max_tokens: int = _env_int("BEHALF_MAX_TOKENS", 4000)
+    max_tokens: int = _env_int("BEHALF_MAX_TOKENS", 16000)
 
     google_client_id: str = _env("GOOGLE_OAUTH_CLIENT_ID", "")
     google_client_secret: str = _env("GOOGLE_OAUTH_CLIENT_SECRET", "")

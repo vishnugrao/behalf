@@ -70,6 +70,13 @@ class OpenAIBrain:
             max_output_tokens=self.max_tokens,
             reasoning={"effort": self.effort},
         )
+        if response.status == "incomplete":
+            reason = getattr(response.incomplete_details, "reason", "unknown")
+            used = getattr(response.usage.output_tokens_details, "reasoning_tokens", 0)
+            raise BrainError(
+                f"response truncated ({reason}); {used} of {self.max_tokens} output tokens went "
+                "to reasoning. Raise BEHALF_MAX_TOKENS or lower BEHALF_EFFORT."
+            )
         text = (response.output_text or "").strip()
         if not text:
             raise BrainError(f"empty response (status={response.status})")
